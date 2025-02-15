@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IoT Smart Home Dashboard</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #3498db;
+            --secondary-color: #2ecc71;
+            --background-color: #f4f6f7;
+            --card-color: #ffffff;
+            --text-color: #2c3e50;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Roboto', sans-serif;
+            background-color: var(--background-color);
+            color: var(--text-color);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .dashboard-title {
+            text-align: center;
+            color: var(--primary-color);
+            margin-bottom: 30px;
+            font-weight: 700;
+        }
+
+        .device-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+        }
+
+        .device-card {
+            background-color: var(--card-color);
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            text-align: center;
+            transition: transform 0.3s ease;
+        }
+
+        .device-card:hover {
+            transform: scale(1.03);
+        }
+
+        .device-icon {
+            font-size: 3rem;
+            margin-bottom: 15px;
+            color: var(--primary-color);
+        }
+
+        .device-title {
+            font-weight: 700;
+            margin-bottom: 10px;
+            color: var(--text-color);
+        }
+
+        .device-data {
+            font-size: 1.2rem;
+            color: var(--primary-color);
+        }
+
+        .toggle-btn {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+            margin-top: 15px;
+        }
+
+        .toggle-btn:hover {
+            background-color: #2980b9;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-left: 10px;
+        }
+
+        .status-on {
+            background-color: var(--secondary-color);
+        }
+
+        .status-off {
+            background-color: #e74c3c;
+        }
+
+        @media (max-width: 600px) {
+            .device-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="dashboard-title">Smart Home IoT Dashboard</h1>
+        
+        <div class="device-grid">
+            <div id="temperatureDevice" class="device-card">
+                <div class="device-icon">🌡️</div>
+                <h2 class="device-title">Temperature & Humidity Sensor</h2>
+                <p class="device-data">
+                    Temperature: <span id="temperatureValue">--</span>°C
+                </p>
+                <p class="device-data">
+                    Humidity: <span id="humidityValue">--</span>%
+                </p>
+            </div>
+
+            <div id="bulbDevice" class="device-card">
+                <div id="bulbDeviceIcon" class="device-icon">💡</div>
+                <h2 class="device-title">Smart Bulb</h2>
+                <p class="device-data">
+                    Status: <span id="bulbStatus">OFF</span>
+                </p>
+                <button onclick="toggleBulb()" class="toggle-btn">Toggle Bulb</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // MQTT Configuration
+        const brokerUrl = 'ws://test.mosquitto.org:8080';
+        const temperatureTopic = 'home/sensors/temperature/9876';
+        const bulbControlTopic = 'home/devices/bulb/9876';
+
+        // MQTT Client Connection
+        const client = mqtt.connect(brokerUrl);
+
+        client.on('connect', () => {
+            console.log('Connected to MQTT Broker');
+            client.subscribe([temperatureTopic, bulbControlTopic]);
+        });
+
+        // Message Handling
+        client.on('message', (topic, message) => {
+            const payload = message.toString();
+            
+            switch(topic) {
+                case temperatureTopic:
+                    const [temp, humidity] = payload.split(',');
+                    console.log(temp, humidity);
+                    document.getElementById('temperatureValue').textContent = parseFloat(temp).toFixed(1);
+                    document.getElementById('humidityValue').textContent = parseFloat(humidity).toFixed(1);
+                    break;
+                
+                case bulbControlTopic:
+                    const bulbStatus = payload === 'ON' ? 'ON' : 'OFF';
+                    console.log(bulbStatus);
+                    const statusElement = document.getElementById('bulbStatus');
+                    const iconElement = document.getElementById('bulbDeviceIcon');
+                    
+                    statusElement.textContent = bulbStatus;
+                    
+                    // Change bulb icon based on status
+                    if (bulbStatus === 'ON') {
+                        iconElement.textContent = '💡';  // Lit bulb
+                    } else {
+                        iconElement.textContent = '🕯️';  // Unlit bulb/candle
+                    }
+                    break;
+            }
+        });
+
+        // Bulb Toggle Function
+        function toggleBulb() {
+            const currentStatus = document.getElementById('bulbStatus').textContent;
+            const newStatus = currentStatus === 'ON' ? 'OFF' : 'ON';
+            client.publish(bulbControlTopic, newStatus);
+        }
+
+        // Error Handling
+        client.on('error', (error) => {
+            console.error('MQTT Connection Error:', error);
+        });
+    </script>
+</body>
+</html>
