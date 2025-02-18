@@ -1,15 +1,17 @@
 #include <ESP8266WiFi.h>
+#include <WebSocketsClient.h>
 #include <PubSubClient.h>
 #include <DHT.h>
 
 // WiFi Configuration
-#define WIFI_SSID "WIFI_SSID"
-#define WIFI_PASSWORD "WIFI_PASSWORD"
+#define WIFI_SSID "Ojjas"
+#define WIFI_PASSWORD "Qwerty@555"
 
 // MQTT Broker Configuration
 #define MQTT_BROKER "test.mosquitto.org"
-#define MQTT_PORT 1883
+#define MQTT_PORT 8081  // Secure WebSocket port
 #define MQTT_CLIENT_ID "ESP8266_IoT_Device_9876"
+#define MQTT_SECURE true  // Enable secure WebSocket
 
 // Pin Configurations
 #define DHTPIN D2       // DHT Sensor Data Pin
@@ -23,8 +25,9 @@
 
 // Global Objects
 DHT dht(DHTPIN, DHTTYPE);
-WiFiClient espClient;
+WiFiClientSecure espClient;
 PubSubClient mqttClient(espClient);
+WebSocketsClient webSocketClient;
 
 // Sensor Reading Interval
 unsigned long lastSensorReadTime = 0;
@@ -67,22 +70,51 @@ void loop() {
 void setupWiFi() {
   delay(10);
   Serial.println("\nConnecting to WiFi");
+  WiFi.mode(WIFI_STA);  // Explicitly set station mode
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   
-  while (WiFi.status() != WL_CONNECTED) {
+  int attempts = 0;
+  while (WiFi.status() != WL_CONNECTED && attempts < 20) {
     delay(500);
     Serial.print(".");
+    attempts++;
+  }
+  
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("\nWiFi Connection Failed");
+    // Optional: Implement WiFi reset or deep sleep
+    return;
   }
   
   Serial.println("\nWiFi Connected");
   Serial.print("IP Address: ");
   Serial.println(WiFi.localIP());
+  
+  // Simplified WebSocket configuration
+  webSocketClient.begin(MQTT_BROKER, MQTT_PORT, "/");
+  webSocketClient.onEvent(webSocketEvent);
+}
+
+void webSocketEvent(WStype_t type, uint8_t * payload, size_t length) {
+  switch(type) {
+    case WStype_CONNECTED:
+      Serial.println("WebSocket Connected");
+      break;
+    case WStype_DISCONNECTED:
+      Serial.println("WebSocket Disconnected");
+      break;
+  }
 }
 
 void publishSensorData() {
+  // Ensure connection before publishing
+  if (!mqttClient.connected()) {
+    return;
+  }
+
   // Read Temperature and Humidity
-  float temperature = 34.5;  //  dht.readTemperature();
-  float humidity =59.3 //dht.readHumidity();
+  float temperature = dht.readTemperature();
+  float humidity = dht.readHumidity();
   
   // Check if reading was successful
   if (isnan(temperature) || isnan(humidity)) {
@@ -134,24 +166,21 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
 }
 
 void reconnectMQTT() {
-  // Loop until reconnected
-  while (!mqttClient.connected()) {
-    Serial.print("Attempting MQTT Connection...");
+  static unsigned long lastReconnectAttempt = 0;
+  
+  if (millis() - lastReconnectAttempt > 5000) {
+    lastReconnectAttempt = millis();
     
-    // Attempt to connect
-    if (mqttClient.connect(MQTT_CLIENT_ID)) {
-      Serial.println("Connected");
-      
-      // Subscribe to Bulb Control Topic
+    Serial.print("Attempting MQTT connection...");
+    
+    // Use a more robust connection method
+    if (mqttClient.connect(MQTT_CLIENT_ID, NULL, NULL)) {
+      Serial.println("connected");
       mqttClient.subscribe(BULB_CONTROL_TOPIC);
-      Serial.println("Subscribed to Bulb Control Topic");
     } else {
-      Serial.print("Failed, rc=");
+      Serial.print("failed, rc=");
       Serial.print(mqttClient.state());
-      Serial.println(" Retrying in 5 seconds");
-      
-      // Wait 5 seconds before retrying
-      delay(5000);
+      Serial.println(" Will retry later");
     }
   }
 }
