@@ -4,8 +4,8 @@
 #include <DHT.h>
 
 // WiFi Configuration
-#define WIFI_SSID "Ojjas"
-#define WIFI_PASSWORD "Qwerty@555"
+#define WIFI_SSID "WIFI_SSID"
+#define WIFI_PASSWORD "WIFI_PASSWOR"
 
 // MQTT Broker Configuration
 #define MQTT_BROKER "test.mosquitto.org"
